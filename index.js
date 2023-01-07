@@ -128,6 +128,26 @@ module.exports = {
                 }
             });
 
+            socket.on("close", () => {
+                this.logger.debug("connection: " + id + "closed");
+                delete this.connections[id];
+                this.broker.emit("tcp.socket.close", {id});
+            })
+
+            socket.on("error", (error) => {
+                this.logger.error("connection: " + id + "error: " + error);
+                this.broker.emit("tcp.socket.error", {id, error});
+            })
+
+            socket.on("timeout", () => {
+                this.logger.error("connection: " + id + "timeout");
+                this.broker.emit("tcp.socket.timeout", {id});
+            })
+
+            if (this.settings.timeout) {
+                socket.setTimeout(this.settings.timeout);
+            }
+
             // notify the connection event
             this.broker.emit("tcp.connection", {id, remoteAddress: socket.remoteAddress});
         },

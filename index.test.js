@@ -6,107 +6,187 @@ const serverIndex = 1;
 const testServiceIndex = 2;
 
 describe("moleculer-tcp", () => {
-    test("default settings are set correctly", async () => {
-        await withBroker(async (broker) => {
-            expect(broker.services[1].settings).toEqual({
-                host: "127.0.0.1",
-                port: 8181,
-                emitData: true,
+    describe("settings", () => {
+        test("default settings are set correctly", async () => {
+            await withBroker(async (broker) => {
+                expect(broker.services[1].settings).toEqual({
+                    host: "127.0.0.1",
+                    port: 8181,
+                    emitData: true,
+                })
+
             })
-
         })
     })
 
-    test("that it emits a listening event", async () => {
-        await withBroker(async (broker) => {
-            expect(getTestService(broker).listening).toBe(true);
-        })
-    })
+    describe("events", () => {
 
-    test("that it emits a close event", async () => {
-        await withBroker(async (broker) => {
-            await new Promise(async (resolve) => {
-                getServer(broker).on("close", () => {
-                    resolve()
-                });
-
-                getServer(broker).close();
+        test("that it emits a listening event", async () => {
+            await withBroker(async (broker) => {
+                expect(getTestService(broker).listening).toBe(true);
             })
-
-            expect(getTestService(broker).close).toBe(true);
         })
-    })
 
-    test("that it emits a drop event", async () => {
-        await withBroker(async (broker) => {
-            await withConnection(async (client) => {
-                const drop = new Promise((resolve) => {
-                    getServer(broker).on("drop", () => {
+        test("that it emits a close event", async () => {
+            await withBroker(async (broker) => {
+                await new Promise(async (resolve) => {
+                    getServer(broker).on("close", () => {
                         resolve()
-                    })
+                    });
+
+                    getServer(broker).close();
                 })
 
-                const client2 = await connect();
-                await drop;
-
-                client2.end();
-
-                expect(getTestService(broker).drop).toEqual(expect.objectContaining({
-                    localAddress: "::ffff:127.0.0.1",
-                    localPort: 8181,
-                    remoteAddress: "::ffff:127.0.0.1",
-                }))
-            })
-        }, {maxConnections: 1})
-    })
-
-    test("that it emits a connection event", async () => {
-        await withBroker(async (broker) => {
-            const connect = new Promise((resolve) => {
-                getServer(broker).on("connection", () => {
-                    resolve();
-                })
-            })
-
-            await withConnection(async (client) => {
-                await connect;
-
-                expect(getTestService(broker).connection).toEqual(expect.objectContaining({
-                    id: expect.any(String),
-                    remoteAddress: "::ffff:127.0.0.1",
-                }))
-            })
-        })
-    })
-
-    test("that it emits a data event when settings.emitData is set to true", async () => {
-        await withBroker(async (broker) => {
-            const connect = new Promise((resolve) => {
-                getServer(broker).on("connection", () => {
-                    resolve();
-                })
-            })
-
-            await withConnection(async (client) => {
-                await connect;
-
-                const data = new Promise((resolve) => {
-                    getConnection(broker).socket.on("data", (data) => {
-                        resolve(data);
-                    })
-                })
-
-                client.write("test");
-                await data
-                expect(getTestService(broker).data).toEqual(expect.objectContaining({
-                    id: expect.any(String),
-                    data: "test",
-                }))
+                expect(getTestService(broker).close).toBe(true);
             })
         })
 
-    })
+        test("that it emits a drop event", async () => {
+            await withBroker(async (broker) => {
+                await withConnection(async (client) => {
+                    const drop = new Promise((resolve) => {
+                        getServer(broker).on("drop", () => {
+                            resolve()
+                        })
+                    })
 
+                    const client2 = await connect();
+                    await drop;
+
+                    client2.end();
+
+                    expect(getTestService(broker).drop).toEqual(expect.objectContaining({
+                        localAddress: "::ffff:127.0.0.1",
+                        localPort: 8181,
+                        remoteAddress: "::ffff:127.0.0.1",
+                    }))
+                })
+            }, {maxConnections: 1})
+        })
+
+        test("that it emits a connection event", async () => {
+            await withBroker(async (broker) => {
+                const connect = new Promise((resolve) => {
+                    getServer(broker).on("connection", () => {
+                        resolve();
+                    })
+                })
+
+                await withConnection(async (client) => {
+                    await connect;
+
+                    expect(getTestService(broker).connection).toEqual(expect.objectContaining({
+                        id: expect.any(String),
+                        remoteAddress: "::ffff:127.0.0.1",
+                    }))
+                })
+            })
+        })
+
+        test("that it emits a data event when settings.emitData is set to true", async () => {
+            await withBroker(async (broker) => {
+                const connect = new Promise((resolve) => {
+                    getServer(broker).on("connection", () => {
+                        resolve();
+                    })
+                })
+
+                await withConnection(async (client) => {
+                    await connect;
+
+                    const data = new Promise((resolve) => {
+                        getConnection(broker).socket.on("data", (data) => {
+                            resolve(data);
+                        })
+                    })
+
+                    client.write("test");
+                    await data
+                    expect(getTestService(broker).data).toEqual(expect.objectContaining({
+                        id: expect.any(String),
+                        data: "test",
+                    }))
+                })
+            })
+        })
+
+        test("that it does not emit a data event when settings.emitData is set to false", async () => {
+            await withBroker(async (broker) => {
+                const connect = new Promise((resolve) => {
+                    getServer(broker).on("connection", () => {
+                        resolve();
+                    })
+                })
+
+                await withConnection(async (client) => {
+                    await connect;
+
+                    const data = new Promise((resolve) => {
+                        getConnection(broker).socket.on("data", (data) => {
+                            resolve(data);
+                        })
+                    })
+
+                    client.write("test");
+                    await data
+                    expect(getTestService(broker).data).toBe(undefined);
+                })
+            }, {emitData: false})
+        })
+
+        test("that it emits a tcp.socket.close event when the socket is closed", async () => {
+            await withBroker(async (broker) => {
+                const connect = new Promise((resolve) => {
+                    getServer(broker).on("connection", () => {
+                        resolve();
+                    })
+                })
+
+                await withConnection(async (client) => {
+                    await connect;
+
+                    const close = new Promise((resolve) => {
+                        getConnection(broker).socket.on("close", () => {
+                            resolve();
+                        })
+                    })
+
+                    client.end();
+                    await close;
+
+                    expect(getTestService(broker).socketClose).toEqual(expect.objectContaining({
+                        id: expect.any(String),
+                    }));
+                })
+            })
+        })
+
+        test("that it emits a tcp.socket.timeout", async () => {
+            await withBroker(async (broker) => {
+                const connect = new Promise((resolve) => {
+                    getServer(broker).on("connection", () => {
+                        resolve();
+                    })
+                })
+
+                await withConnection(async (client) => {
+                    await connect;
+
+                    const timeout = new Promise((resolve) => {
+                        getConnection(broker).socket.on("timeout", () => {
+                            resolve();
+                        })
+                    })
+
+                    await new Promise((resolve) => setTimeout(() => resolve(), 200))
+
+                    await timeout;
+                })
+
+                expect(getTestService(broker).socketTimeout).toEqual(expect.objectContaining({"id": expect.any(String)}));
+            }, {timeout: 100})
+        })
+    })
 })
 
 async function createBroker(settings) {
@@ -115,6 +195,12 @@ async function createBroker(settings) {
         events: {
             "tcp.socket.data"(ctx) {
                 this.data = ctx.params;
+            },
+            "tcp.socket.close"(ctx) {
+                this.socketClose = ctx.params
+            },
+            "tcp.socket.timeout"(ctx) {
+                this.socketTimeout = ctx.params
             },
             "tcp.connection"(ctx) {
                 this.connection = ctx.params;
