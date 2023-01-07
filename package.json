@@ -1,0 +1,17 @@
+{
+  "name": "moleculer-tcp",
+  "version": "0.1.0",
+  "description": "TCP Gateway for MoleculerJS",
+  "main": "index.js",
+  "repository": "https://github.com/fugufish/moleculer-tcp",
+  "author": "Jarod Reid",
+  "license": "MIT",
+  "private": false,
+  "dependencies": {
+    "moleculer": "^0.14.27",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.3.1"
+  }
+}
