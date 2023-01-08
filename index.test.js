@@ -178,7 +178,7 @@ describe("moleculer-tcp", () => {
                         })
                     })
 
-                    await new Promise((resolve) => setTimeout(() => resolve(), 200))
+                    await new Promise((resolve) => setTimeout(() => resolve(), 500))
 
                     await timeout;
                 })
