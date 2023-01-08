@@ -1,4 +1,6 @@
-gThis Moleculer Service mixin provides a tcp gateway. Incoming data from the connection is processed by the
+[![Moleculer logo](http://moleculer.services/images/banner.png)](https://github.com/moleculerjs/moleculer)
+
+This Moleculer Service mixin provides a tcp gateway. Incoming data from the connection is processed by the
 `handleData` action. Override this action with your own implementation. Connections all have a unique id
 and their own data store which can be utilized to store arbitrary data for the connection.
 
