@@ -24,6 +24,8 @@ const uuid = require('uuid').v4;
  * | `handleData` | `data: string` | private | This action is called when a new data received from the connection. |
  * | `getConnectionData` | `connectionId: string`, `key: string` | public | Gets data from the connection's data store. |
  * | `setConnectionData` | `connectionId: string`, `key: string`, `value: any` | public | Sets data to the connection's data store. |
+ * | `deleteConnectionData` | `connectionId: string`, `key: string` | public | Deletes data from the connection's data store. |
+ * | `send` | `connectionId: string`, `data: string` | public | Sends data to the connection. |
  *
  *
  * ## Events
@@ -81,6 +83,15 @@ module.exports = {
                 return Promise.resolve()
             }
         },
+        send: {
+            params: {
+                id: "string",
+                data: "string",
+            },
+            async handler(ctx) {
+                this.sendToConnection(ctx.params.id, ctx.params.data)
+            }
+        },
         getConnectionData: {
             params: {
                 id: "string",
@@ -99,7 +110,7 @@ module.exports = {
             async handler(ctx) {
                 return Promise.resolve(this.setConnectionData(ctx.params.id, ctx.params.key, ctx.params.value))
             }
-        }
+        },
     },
 
     methods: {
@@ -156,10 +167,6 @@ module.exports = {
             this.actions.handleData({id, data});
         },
 
-        // This is the handler for the cluster exit event
-        clusterExitHandler(worker, code, signal) {
-            this.logger.warn("worker " + worker.process.pid + " died");
-        },
         async startServer() {
             // if this is a TLS server, we need to create a TLS server
             if (this.settings.tls) {

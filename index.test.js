@@ -187,6 +187,23 @@ describe("moleculer-tcp", () => {
             }, {timeout: 100})
         })
     })
+
+    describe("actions", () => {
+        test("tcp.send", async () => {
+            await withBroker(async (broker) => {
+                await withConnection(async (client) => {
+                    const data = new Promise((resolve) => {
+                        client.on("data", (data) => {
+                            resolve(data);
+                        })
+                    })
+
+                    await broker.call("testServer.send", {id: getConnection(broker).id, data: "test"});
+                    expect(await data).toEqual(Buffer.from("test"));
+                })
+            })
+        })
+    })
 })
 
 async function createBroker(settings) {
@@ -261,6 +278,8 @@ async function connect() {
         client.on("connect", resolve);
         client.on("error", reject);
     })
+
+    await new Promise((resolve) => setTimeout(() => resolve(), 100))
 
     return client
 }
