@@ -16,6 +16,7 @@ const uuid = require('uuid').v4;
  * | `maxConnections` | `number` | `null` | Maximum number of connections. |
  * | `emitData` | `boolean` | `false` | Emit `tcp.data` event when a new data received. |
  * | `timeout` | `number` | `null` | Timeout in milliseconds. |
+ * | `afterConnect` | `function(id: string)` | `null` | Custom function to call after a new connection established. |
  *
  * ## Actions
  *
@@ -115,7 +116,7 @@ module.exports = {
 
     methods: {
         // This is the handler for the TCP server
-        connectionHandler(socket) {
+        async connectionHandler(socket) {
             this.logger.debug("received connection from " + socket.remoteAddress);
 
             // create new connection uuid
@@ -160,7 +161,15 @@ module.exports = {
             }
 
             // notify the connection event
-            this.broker.emit("tcp.connection", {id, remoteAddress: socket.remoteAddress});
+            await this.broker.emit("tcp.connection", {id, remoteAddress: socket.remoteAddress});
+
+            if (this.settings.afterConnect) {
+                try {
+                    await this.settings.afterConnect.bind(this)(id)
+                } catch (e) {
+                    this.logger.error("afterConnect error", e)
+                }
+            }
         },
 
         handleData(id, data) {
@@ -212,7 +221,7 @@ module.exports = {
         // Stops the TCP server
         stopServer() {
             for (let id in this.connections) {
-                this.connections[id].end();
+                this.connections[id].socket.end()
             }
 
             this.server.close();
