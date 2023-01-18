@@ -5,38 +5,32 @@ This Moleculer Service mixin provides a tcp gateway. Incoming data from the conn
 and their own data store which can be utilized to store arbitrary data for the connection.
 
 ## Settings
-
-
-| Property         | Type                                                                                                                | Default     | Description                                                                                            |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
-| `port`           | `number`                                                                                                            | `2323`      | Port number to listen. This setting can also be set by the`MOLECULER_TELNET_HOST` environment variable |
-| `host`           | `string`                                                                                                            | `127.0.0.1` | Hostname to listen. This setting can also be set by the`MOLECULER_TELNET_HOST` environment variable    |
-| `tls`            | [`object` (see NodeJS TLS Options](https://nodejs.org/api/tls.html#tlscreateserveroptions-secureconnectionlistener) | `null`      | TLS options.                                                                                           |
-| `maxConnections` | `number`                                                                                                            | `null`      | Maximum number of connections.                                                                         |
-| `emitData`       | `boolean`                                                                                                           | `false`     | Emit`tcp.data` event when a new data received.                                                         |
-| `timeout`        | `number`                                                                                                            | `null`      | Timeout in milliseconds.                                                                               |
+| Property | Type | Default | Description |
+| -------- | ---- | ------- | ----------- |
+| `port` | `number` | `2323` | Port number to listen. This setting can also be set by the `MOLECULER_TELNET_HOST` environment variable |
+| `host` | `string` | `127.0.0.1` | Hostname to listen. This setting can also be set by the `MOLECULER_TELNET_HOST` environment variable |
+| `maxConnections` | `number` | `null` | Maximum number of connections. |
+| `timeout` | `number` | `null` | Timeout in milliseconds. |
 
 ## Actions
-
-
-| Name                   | Parameters                                          | Visibility | Description                                                         |
-| ---------------------- | --------------------------------------------------- | ---------- | ------------------------------------------------------------------- |
-| `handleData`           | `data: string`                                      | private    | This action is called when a new data received from the connection. |
-| `getConnectionData`    | `connectionId: string`, `key: string`               | public     | Gets data from the connection's data store.                         |
-| `setConnectionData`    | `connectionId: string`, `key: string`, `value: any` | public     | Sets data to the connection's data store.                           |
-| `deleteConnectionData` | `connectionId: string`, `key: string`               | public     | Deletes data from the connection's data store.                      |
-| `send`                 | `connectionId: string`, `data: string`              | public     | Sends data to the connection.                                       |
+| Name | Parameters | Visibility | Description |
+| ---- | ---------- | ---------- |  ----------- |
+| `deleteMetadata` | `id: string, key: string` | `public` | Delete a value from the connection's metadata store. This will emit the `tcp.socket.metadata.delete` event. |
+| `getMetadata` | `id: string, key: string` | `public` | Get a value from the connection's metadata store. |
+| `setMetadata` | `id: string, key: string, value: any` | `public` |  Set a value in the connection's metadata store. This will emit the `tcp.socket.metadata.set` event.|
+| `socketClose` | `id: number` | public | Close a socket. |
+| `socketWrite` | `id: string, data: string` | `public` | Write data to a socket. |
 
 ## Events
-
-
-| Name                 | Parameters                                                                                 | Description                                                                                                                                                        |
-| -------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `tcp.connection`     | `id: string`                                                                               | **emitted** when a client has connected.                                                                                                                           |
-| `tcp.listening`      |                                                                                            | **emitted* when the server has been bound                                                                                                                          |
-| `tcp.close`          |                                                                                            | **emitted** when the server closes. If connections exist, this event is not emitted until all connections are ended.                                               |
-| `tcp.drop`           | `localAddress: string`, `localPort: number`, `remoteAddress: string`, `remotePort: number` | **emitted** when the number of connections reaches the threshold of `settings.maxConnections`, the server will drop new connections and emit `drop` event instead. |
-| `tcp.socket.data`    | `id: string`, `data: string`                                                               | **emitted** when a client sends data. This is ONLY emitted if `settings.emitData` is set to true.                                                                  |
-| `tcp.socket.close`   | `id: string`                                                                               | **emitted** when a client closes the connection.                                                                                                                   |
-| `tcp.socket.error`   | `id: string`, `error: Error`                                                               | **emitted** when a client has an error.                                                                                                                            |
-| `tcp.socket.timeout` | `id: string`                                                                               | **emitted** when a client has a timeout.                                                                                                                           |
+| Name | Parameters | Description |
+| ---- | ---------- | ----------- |
+| `tcp.socket.metadata.set` | `id: string, key: string` | Emitted when a value is set in the connection's metadata store. |
+| `tcp.socket.metadata.delete` | `id: string, key: string` | Emitted when a value is deleted from the connection's metadata store. |
+` `tcp.socket.data` | `id: string, data: any` | Emitted when data is received from a socket. |
+| `tcp.socket.close` | `id: string` | Emitted when a socket is closed. |
+| `tcp.socket.timeout` | `id: string` `timeout: number` | Emitted when a socket times out. |
+| `tcp.socket.error`   | `id: string, error: any` | Emitted when a socket errors. |
+| `tcp.connection` | `id: string` | Emitted when a new connection is established. |
+| `tcp.close` | `id: string` | Emitted when a connection is closed. |
+| `tcp.error` | `id: string, error: any` | Emitted when a connection errors. |
+| `tcp.drop` | `id: string` | Emitted when a connection is dropped due to max connections. |

@@ -33,6 +33,10 @@ const { Server } = require("net");
  * | `tcp.socket.close` | `id: string` | Emitted when a socket is closed. |
  * | `tcp.socket.timeout` | `id: string` `timeout: number` | Emitted when a socket times out. |
  * | `tcp.socket.error`   | `id: string, error: any` | Emitted when a socket errors. |
+ * | `tcp.connection` | `id: string` | Emitted when a new connection is established. |
+ * | `tcp.close` | `id: string` | Emitted when a connection is closed. |
+ * | `tcp.error` | `id: string, error: any` | Emitted when a connection errors. |
+ * | `tcp.drop` | `id: string` | Emitted when a connection is dropped due to max connections. |
  */
 module.exports = {
   name: "tcp",
