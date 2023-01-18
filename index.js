@@ -1,258 +1,389 @@
-const cluster = require("cluster");
-const uuid = require('uuid').v4;
+const uuid = require("uuid").v4;
+const { Errors } = require("moleculer");
+const { Server } = require("net");
 
 /**
  * This Moleculer Service mixin provides a tcp gateway. Incoming data from the connection is processed by the
  * `handleData` action. Override this action with your own implementation. Connections all have a unique id
- * and their own data store which can be utilized to store arbitrary data for the connection.
+ * and their own metadata store which can be utilized to store arbitrary data for the connection.
  *
  * ## Settings
- *
  * | Property | Type | Default | Description |
  * | -------- | ---- | ------- | ----------- |
  * | `port` | `number` | `2323` | Port number to listen. This setting can also be set by the `MOLECULER_TELNET_HOST` environment variable |
  * | `host` | `string` | `127.0.0.1` | Hostname to listen. This setting can also be set by the `MOLECULER_TELNET_HOST` environment variable |
- * | `tls` | [`object` (see NodeJS TLS Options](https://nodejs.org/api/tls.html#tlscreateserveroptions-secureconnectionlistener) | `null` | TLS options. |
  * | `maxConnections` | `number` | `null` | Maximum number of connections. |
- * | `emitData` | `boolean` | `false` | Emit `tcp.data` event when a new data received. |
  * | `timeout` | `number` | `null` | Timeout in milliseconds. |
- * | `afterConnect` | `function(id: string)` | `null` | Custom function to call after a new connection established. |
  *
  * ## Actions
- *
  * | Name | Parameters | Visibility | Description |
- * | ---- | ---------- | ---------- | ----------- |
- * | `handleData` | `data: string` | private | This action is called when a new data received from the connection. |
- * | `getConnectionData` | `connectionId: string`, `key: string` | public | Gets data from the connection's data store. |
- * | `setConnectionData` | `connectionId: string`, `key: string`, `value: any` | public | Sets data to the connection's data store. |
- * | `deleteConnectionData` | `connectionId: string`, `key: string` | public | Deletes data from the connection's data store. |
- * | `send` | `connectionId: string`, `data: string` | public | Sends data to the connection. |
+ * | ---- | ---------- | ---------- |  ----------- |
+ * | `deleteMetadata` | `id: string, key: string` | `public` | Delete a value from the connection's metadata store. This will emit the `tcp.socket.metadata.delete` event. |
+ * | `getMetadata` | `id: string, key: string` | `public` | Get a value from the connection's metadata store. |
+ * | `setMetadata` | `id: string, key: string, value: any` | `public` |  Set a value in the connection's metadata store. This will emit the `tcp.socket.metadata.set` event.|
+ * | `socketClose` | `id: number` | public | Close a socket. |
+ * | `socketWrite` | `id: string, data: string` | `public` | Write data to a socket. |
  *
  *
  * ## Events
- *
  * | Name | Parameters | Description |
  * | ---- | ---------- | ----------- |
- * | `tcp.connection` | `id: string` | **emitted** when a client has connected. |
- * | `tcp.listening` | | **emitted* when the server has been bound  |
- * | `tcp.close` | | **emitted** when the server closes. If connections exist, this event is not emitted until all connections are ended. |
- * | `tcp.drop` | `localAddress: string`, `localPort: number`, `remoteAddress: string`, `remotePort: number` | **emitted** when the number of connections reaches the threshold of `settings.maxConnections`, the server will drop new connections and emit `drop` event instead. |
- * | `tcp.socket.data` | `id: string`, `data: string` | **emitted** when a client sends data. This is ONLY emitted if `settings.emitData` is set to true. |
- * | `tcp.socket.close` | `id: string` | **emitted** when a client closes the connection. |
- * | `tcp.socket.error` | `id: string`, `error: Error` | **emitted** when a client has an error. |
- * | `tcp.socket.timeout` | `id: string` | **emitted** when a client has a timeout. |
- *
+ * | `tcp.socket.metadata.set` | `id: string, key: string` | Emitted when a value is set in the connection's metadata store. |
+ * | `tcp.socket.metadata.delete` | `id: string, key: string` | Emitted when a value is deleted from the connection's metadata store. |
+ * ` `tcp.socket.data` | `id: string, data: any` | Emitted when data is received from a socket. |
+ * | `tcp.socket.close` | `id: string` | Emitted when a socket is closed. |
+ * | `tcp.socket.timeout` | `id: string` `timeout: number` | Emitted when a socket times out. |
+ * | `tcp.socket.error`   | `id: string, error: any` | Emitted when a socket errors. |
  */
 module.exports = {
-    name: "tcp",
-    settings: {
-        // The port number to listen on
-        port: process.env.MOLECULER_TELNET_PORT || 8181,
-
-        // The host to listen on
-        host: process.env.MOLECULER_TELNET_IP || "127.0.0.1",
+  name: "tcp",
+  settings: {
+    // The port number to listen on
+    get port() {
+      if (process.env.MOLECULER_TCP_PORT) {
+        return parseInt(process.env.MOLECULER_TCP_PORT, 10);
+      } else {
+        return 8181;
+      }
     },
 
-    created() {
-        this.connections = {}
-        this.workers = []
+    // The host to listen on
+    get host() {
+      if (process.env.MOLECULER_TCP_HOST) {
+        return process.env.MOLECULER_TCP_HOST;
+      } else {
+        return "127.0.0.1";
+      }
     },
+  },
 
-    stopped() {
-        this.logger.info("stopping tcp transport");
-        this.server.close();
-        this.stopServer()
-    },
+  created() {
+    this.connections = {};
+    this.workers = [];
+  },
 
-    async started() {
-        this.logger.info("starting tcp server");
-        await this.startServer();
-        return this.broker.emit("tcp.connected");
-    },
+  async stopped() {
+    this.logger.info("stopping tcp transport");
+    this.server.close();
+    await this.stopServer();
+  },
 
-    actions: {
-        handleData: {
-            params: {
-                id: "string",
-                data: "any",
-            },
-            visibility: "private",
-            async handler(ctx) {
-                const {id, data} = ctx.params;
-                this.logger.error("override handleData action to handle incoming data");
+  async started() {
+    this.logger.info("starting tcp server");
+    await this.startServer();
+  },
 
-                return Promise.resolve()
-            }
-        },
-        send: {
-            params: {
-                id: "string",
-                data: "string",
-            },
-            async handler(ctx) {
-                this.sendToConnection(ctx.params.id, ctx.params.data)
-            }
-        },
-        getConnectionData: {
-            params: {
-                id: "string",
-                key: "string",
-            },
-            async handler(ctx) {
-                return Promise.resolve(this.getConnectionData(ctx.params.id, ctx.params.key))
-            }
-        },
-        setConnectionData: {
-            params: {
-                id: "string",
-                key: "string",
-                value: "any",
-            },
-            async handler(ctx) {
-                return Promise.resolve(this.setConnectionData(ctx.params.id, ctx.params.key, ctx.params.value))
-            }
-        },
-    },
+  actions: {
+    deleteMetadata: {
+      params: {
+        id: "string",
+        key: "string",
+      },
+      async handler(ctx) {
+        const { id, key } = ctx.params;
 
-    methods: {
-        // This is the handler for the TCP server
-        async connectionHandler(socket) {
-            this.logger.debug("received connection from " + socket.remoteAddress);
+        if (this.connections[id]) {
+          this.logger.debug("connection: " + id + " deleting data");
 
-            // create new connection uuid
-            const id = uuid();
+          delete this.connections[id].metadata[key];
 
-            // add the socket to the connection list
-            this.connections[id] = {
-                id,
-                socket,
-                data: {
-                    type: "tcp",
-                    remoteAddress: socket.remoteAddress,
-                }
-            };
-
-            socket.on("data", (data) => {
-                this.handleData(id, data)
-
-                if (this.settings.emitData) {
-                    this.broker.emit("tcp.socket.data", {id, data: data.toString()});
-                }
-            });
-
-            socket.on("close", () => {
-                this.logger.debug("connection: " + id + "closed");
-                delete this.connections[id];
-                this.broker.emit("tcp.socket.close", {id});
-            })
-
-            socket.on("error", (error) => {
-                this.logger.error("connection: " + id + "error: " + error);
-                this.broker.emit("tcp.socket.error", {id, error});
-            })
-
-            socket.on("timeout", () => {
-                this.logger.error("connection: " + id + "timeout");
-                this.broker.emit("tcp.socket.timeout", {id});
-            })
-
-            if (this.settings.timeout) {
-                socket.setTimeout(this.settings.timeout);
-            }
-
-            // notify the connection event
-            await this.broker.emit("tcp.connection", {id, remoteAddress: socket.remoteAddress});
-
-            if (this.settings.afterConnect) {
-                try {
-                    await this.settings.afterConnect.bind(this)(id)
-                } catch (e) {
-                    this.logger.error("afterConnect error", e)
-                }
-            }
-        },
-
-        handleData(id, data) {
-            this.actions.handleData({id, data});
-        },
-
-        async startServer() {
-            // if this is a TLS server, we need to create a TLS server
-            if (this.settings.tls) {
-                const {createServer} = require("tls");
-
-                this.server = createServer(this.settings.tls, this.connectionHandler);
-            } else {
-                this.logger.info("starting tcp server on " + this.settings.host + ":" + this.settings.port);
-                const {createServer} = require("net");
-
-                this.server = createServer();
-            }
-
-            const result = new Promise((resolve, reject) => {
-                this.server.once("error", reject);
-                this.server.once("listening", resolve);
-            })
-
-            if (this.settings.maxConnections) {
-                this.server.maxConnections = this.settings.maxConnections;
-            }
-
-            this.server.on("listening", () => {
-                this.broker.emit("tcp.listening")
-            })
-            this.server.on("close", () => {
-                this.broker.emit("tcp.close")
-            })
-            this.server.on("drop", (socket) => {
-                this.broker.emit("tcp.drop", {
-                    remoteAddress: socket.remoteAddress,
-                    localAddress: socket.localAddress,
-                    localPort: socket.localPort
-                })
-            })
-            this.server.on("connection", this.connectionHandler);
-
-            this.server.listen(this.settings.port);
-
-            return result;
-        },
-
-        // Stops the TCP server
-        stopServer() {
-            for (let id in this.connections) {
-                this.connections[id].socket.end()
-            }
-
-            this.server.close();
-        },
-
-        // Sends a message to a connection
-        sendToConnection(id, message) {
-            const buffer = Buffer.from(message);
-
-            this.logger.debug("connection: " + id + " sending " + buffer.length + " bytes");
-            if (this.connections[id]) {
-                this.connections[id].socket.write(buffer);
-            }
-        },
-
-        // Sets data on the connection. Data is an arbitrary store in which the developer can store data specific to
-        // the connection
-        setConnectionData(id, key, data) {
-            if (this.connections[id]) {
-                this.logger.debug("connection: " + id + " setting data: " + key);
-                this.connections[id].data[key] = data;
-            }
-        },
-
-        // Gets data from the connection. Data is an arbitrary store in which the developer can store data specific to
-        // the connection
-        getConnectionData(id, key) {
-            if (this.connections[id]) {
-                return this.connections[id].data[key];
-            }
+          return this.broker.emit("tcp.socket.metadata.delete", {
+            id,
+            key,
+          });
+        } else {
+          throw new Errors.MoleculerError(
+            "connection not found",
+            404,
+            "CONNECTION_NOT_FOUND"
+          );
         }
-    }
+      },
+    },
 
-}
+    getMetadata: {
+      params: {
+        id: "string",
+        key: "string",
+      },
+      async handler(ctx) {
+        const { id, key } = ctx.params;
+
+        if (this.connections[id]) {
+          return this.connections[id].metadata[key];
+        } else {
+          throw new Errors.MoleculerClientError(
+            "connection not found",
+            404,
+            "CONNECTION_NOT_FOUND"
+          );
+        }
+      },
+    },
+
+    onServerConnection: {
+      params: {
+        socket: "any",
+      },
+      visibility: "private",
+      async handler(ctx) {
+        const { socket } = ctx.params;
+
+        this.logger.debug("received connection from " + socket.remoteAddress);
+
+        // create new connection uuid
+        const id = uuid();
+
+        // add the socket to the connection list
+        this.connections[id] = {
+          id,
+          socket,
+          metadata: {
+            type: "tcp",
+            remoteAddress: socket.remoteAddress,
+          },
+        };
+
+        socket.on("data", (data) =>
+          this.actions.onSocketData({
+            id,
+            data,
+          })
+        );
+
+        socket.on("close", () => {
+          this.actions.onSocketClose({
+            id,
+          });
+        });
+
+        socket.on("error", (error) => {
+          this.actions.onSocketError({
+            id,
+            error,
+          });
+        });
+
+        socket.on("timeout", () => {
+          this.actions.onSocketTimeout({
+            id,
+            timeout: socket.timeout,
+          });
+        });
+
+        if (this.settings.timeout) {
+          socket.setTimeout(this.settings.timeout);
+        }
+
+        await this.broker.emit("tcp.connection", {
+          id,
+        });
+      },
+    },
+
+    onSocketClose: {
+      params: {
+        id: "string",
+      },
+      visibility: "private",
+      async handler(ctx) {
+        const { id } = ctx.params;
+
+        if (this.connections[id]) {
+          this.logger.debug("connection: " + id + " closing");
+
+          this.connections[id].socket.end();
+          return this.broker.emit("tcp.socket.close", { id });
+        } else {
+          throw new Errors.MoleculerClientError(
+            "connection not found: " + id,
+            404,
+            "CONNECTION_NOT_FOUND"
+          );
+        }
+      },
+    },
+
+    onSocketTimeout: {
+      params: {
+        id: "string",
+        timeout: "number",
+      },
+      visibility: "private",
+      async handler(ctx) {
+        const { id, timeout } = ctx.params;
+
+        if (this.connections[id]) {
+          this.logger.debug("connection: " + id + " timeout: " + timeout);
+
+          this.connections[id].socket.end();
+          return this.broker.emit("tcp.socket.timeout", { id });
+        } else {
+          throw new Errors.MoleculerClientError(
+            "connection not found: " + id,
+            404,
+            "CONNECTION_NOT_FOUND"
+          );
+        }
+      },
+    },
+
+    // Socket actions
+    onSocketData: {
+      params: {
+        id: "string",
+        data: "any",
+      },
+      visibility: "private",
+      async handler(ctx) {
+        const { id, data } = ctx.params;
+
+        if (this.connections[id]) {
+          const buffer = Buffer.from(data);
+
+          this.logger.debug(
+            "connection: " + id + " received " + buffer.length + " bytes"
+          );
+
+          return this.broker.emit("tcp.socket.data", {
+            id,
+            data,
+          });
+        } else {
+          throw new Errors.MoleculerClientError(
+            "connection not found: " + id,
+            404,
+            "CONNECTION_NOT_FOUND"
+          );
+        }
+      },
+    },
+
+    onSocketError: {
+      params: {
+        id: "string",
+        error: "any",
+      },
+      visibility: "private",
+      async handler(ctx) {
+        const { id, error } = ctx.params;
+
+        if (this.connections[id]) {
+          this.logger.debug("connection: " + id + " error: " + error);
+
+          this.connections[id].socket.end();
+          return this.broker.emit("tcp.socket.error", { id, error });
+        } else {
+          throw new Errors.MoleculerClientError(
+            "connection not found: " + id,
+            404,
+            "CONNECTION_NOT_FOUND"
+          );
+        }
+      },
+    },
+
+    setMetadata: {
+      params: {
+        id: "string",
+        key: "string",
+        value: "any",
+      },
+      async handler(ctx) {
+        const { id, key, value } = ctx.params;
+
+        if (this.connections[id]) {
+          this.logger.debug("connection: " + id + " setting data: " + key);
+
+          this.connections[id].metadata[key] = value;
+
+          return this.broker.emit("tcp.socket.metadata.set", {
+            id,
+            key,
+          });
+        }
+
+        throw new Errors.MoleculerError(
+          "connection not found",
+          404,
+          "CONNECTION_NOT_FOUND"
+        );
+      },
+    },
+
+    socketClose: {
+      params: {
+        id: "string",
+      },
+      handler(ctx) {
+        const { id } = ctx.params;
+
+        if (this.connections[id]) {
+          this.logger.debug("closing socket: " + id);
+
+          this.connections[id].socket.destroy();
+        } else {
+          throw new Errors.MoleculerError(
+            "connection not found",
+            404,
+            "CONNECTION_NOT_FOUND"
+          );
+        }
+      },
+    },
+  },
+
+  methods: {
+    async startServer() {
+      this.server = new Server();
+
+      const result = new Promise((resolve, reject) => {
+        this.server.once("error", reject);
+        this.server.once("listening", resolve);
+      });
+
+      if (this.settings.maxConnections) {
+        this.server.maxConnections = this.settings.maxConnections;
+      }
+
+      this.server.on("listening", () => {
+        this.broker.emit("tcp.listening");
+      });
+
+      this.server.on("error", (error) =>
+        this.broker.emit("tcp.error", { error })
+      );
+
+      this.server.on("close", () => {
+        this.broker.emit("tcp.close");
+      });
+      this.server.on("drop", (socket) => {
+        this.broker.emit("tcp.drop", {
+          remoteAddress: socket.remoteAddress,
+          localAddress: socket.localAddress,
+          localPort: socket.localPort,
+        });
+      });
+      this.server.on("connection", (socket) =>
+        this.actions.onServerConnection({ socket })
+      );
+
+      this.server.listen(this.settings.port, this.settings.host);
+
+      return result;
+    },
+
+    // Stops the TCP server
+    async stopServer() {
+      this.logger.info(`stopping ${this.connections.length} connections`);
+      for (let id in this.connections) {
+        this.connections[id].socket.end();
+      }
+
+      await new Promise((resolve) => {
+        this.server.once("close", resolve);
+        this.server.close();
+      });
+    },
+  },
+};

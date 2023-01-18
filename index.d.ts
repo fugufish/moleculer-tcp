@@ -1,66 +1,23 @@
-import { Context, Service, ServiceActions } from "moleculer";
-
-interface IMoleculerTCPActions extends ServiceActions {
-  handleData: (ctx: Context<IMoleculerTCPHandleDataParams>) => Promise<unknown>;
-}
-
-export interface IMoleculerSettingsSchema {
-  /**
-   * TCP server host. Default: `127.0.0.1`
-   */
-  host?: string;
+declare module "moleculer-tcp" {
+  import { ServiceSettingSchema, Service } from "moleculer";
 
   /**
-   * TCP server port. Default: `23233`
+   * The Moleculer TCP service settings.
    */
-  port?: number;
+  export interface TMoleculerTCPSettings extends ServiceSettingSchema {
+    /**
+     * The port that the TCP server will listen on. Defaults to `8181`
+     */
 
-  /**
-   * Maximum number of connections. Unlimited if not defined. Default: `null`
-   */
-  maxConnections?: number;
+    port?: number;
 
-  /**
-   * Whehter or not to emit incoming data as an event. Default: `false`
-   */
-  emitData?: boolean;
+    /**
+     * The host that the TCP server will listen on. Defaults to `127.0.0.1`
+     */
+    host?: string;
+  }
 
-  /**
-   * The connection timeout in milliseconds. If not defined, there will be no timeout. Default: `null`
-   */
-  timeout: number;
-
-  /**
-   * Custom function to call when a new connection is established. Default: `null`
-   * @param id the connection id
-   */
-  afterConnect?: (id: string) => Promise<void>;
-}
-
-/**
- * The parameters to pass to the handleData action.
- */
-export interface IMoleculerTCPHandleDataParams {
-  /**
-   * The connection id.
-   */
-  id: string;
-
-  /**
-   * The data received from the connection.
-   */
-  data: string | Buffer;
-}
-
-export class MoleculerTCPService<
-  S extends IMoleculerSettingsSchema = IMoleculerSettingsSchema
-> extends Service<S> {
-  actions: IMoleculerTCPActions;
-
-  /**
-   * Send data to a connection
-   * @param id the connection id
-   * @param data the data to send
-   */
-  sendToConnection(id: string, data: string): Promise<void>;
+  export default class MoleculerTCP<
+    S extends TMoleculerTCPSettings
+  > extends Service<S> {}
 }

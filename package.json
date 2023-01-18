@@ -1,6 +1,6 @@
 {
   "name": "moleculer-tcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TCP Gateway for MoleculerJS",
   "main": "index.js",
   "repository": "https://github.com/fugufish/moleculer-tcp",
@@ -12,6 +12,7 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
+    "@types/jest": "^29.2.5",
     "jest": "^29.3.1"
   },
   "scripts": {
