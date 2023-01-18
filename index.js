@@ -24,7 +24,6 @@ const { Server } = require("net");
  * | `socketClose` | `id: number` | public | Close a socket. |
  * | `socketWrite` | `id: string, data: string` | `public` | Write data to a socket. |
  *
- *
  * ## Events
  * | Name | Parameters | Description |
  * | ---- | ---------- | ----------- |
@@ -322,6 +321,28 @@ module.exports = {
           this.logger.debug("closing socket: " + id);
 
           this.connections[id].socket.destroy();
+        } else {
+          throw new Errors.MoleculerError(
+            "connection not found",
+            404,
+            "CONNECTION_NOT_FOUND"
+          );
+        }
+      },
+    },
+
+    socketWrite: {
+      params: {
+        id: "string",
+        data: "any",
+      },
+      handler(ctx) {
+        const { id, data } = ctx.params;
+
+        if (this.connections[id]) {
+          this.logger.debug("writing to socket: " + id);
+
+          this.connections[id].socket.write(data);
         } else {
           throw new Errors.MoleculerError(
             "connection not found",

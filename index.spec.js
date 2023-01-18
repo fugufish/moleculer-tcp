@@ -299,5 +299,27 @@ describe("moleculer-tcp", () => {
         });
       });
     });
+
+    describe("socketWrite", () => {
+      it("should write data to the socket", async () => {
+        await broker.call("tcp.socketWrite", {
+          id: connectionId,
+          data: "foo",
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        expect(socketBuffer[0].toString()).toEqual("foo");
+      });
+
+      it("should throw an error if the connection does not exist", async () => {
+        await expect(
+          broker.call("tcp.socketWrite", {
+            id: "foo",
+            data: "bar",
+          })
+        ).rejects.toThrow("connection not found");
+      });
+    });
   });
 });
