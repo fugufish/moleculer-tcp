@@ -56,7 +56,6 @@ describe("moleculer-tcp", () => {
     let connectionId;
     let serverService;
     let responderService;
-    let watcherService;
     let connection;
 
     const responder = {
@@ -64,24 +63,31 @@ describe("moleculer-tcp", () => {
       events: {
         "tcp.socket.metadata.set"(ctx) {
           this.metadataSet(ctx.params);
+          this.emitter.emit("metadata.set", ctx.params);
         },
         "tcp.socket.metadata.delete"(ctx) {
           this.metadataDelete(ctx.params);
+          this.emitter.emit("metadata.delete", ctx.params);
         },
         "tcp.socket.data"(ctx) {
           this.data(ctx.params);
+          this.emitter.emit("data", ctx.params);
         },
         "tcp.socket.close"(ctx) {
           this.close(ctx.params);
+          this.emitter.emit("close", ctx.params);
         },
         "tcp.socket.error"(ctx) {
           this.error(ctx.params);
+          this.emitter.emit("error", ctx.params);
         },
         "tcp.connection"(ctx) {
           this.connection(ctx.params);
+          this.emitter.emit("connection", ctx.params);
         },
         "tcp.socket.timeout"(ctx) {
           this.timeout(ctx.params);
+          this.emitter.emit("timeout", ctx.params);
         },
       },
       created() {
@@ -92,18 +98,7 @@ describe("moleculer-tcp", () => {
         this.connection = jest.fn();
         this.timeout = jest.fn();
         this.error = jest.fn();
-      },
-    };
-
-    const watcher = {
-      name: "watcher",
-      created() {
         this.emitter = new EventEmitter();
-      },
-      events: {
-        "tcp.connection"(ctx) {
-          this.emitter.emit("connection", ctx.params);
-        },
       },
     };
 
@@ -117,14 +112,25 @@ describe("moleculer-tcp", () => {
         settings: {
           timeout: 100,
         },
+        created() {
+          this.onServerConnectionAfterParams = jest.fn();
+        },
+        actions: {
+          onServerConnection: {
+            hooks: {
+              after(ctx) {
+                this.onServerConnectionAfterParams(ctx.params);
+              },
+            },
+          },
+        },
       });
       responderService = broker.createService(responder);
-      watcherService = broker.createService(watcher);
 
-      await broker.waitForServices([server.name, responder.name, watcher.name]);
+      await broker.waitForServices([server.name, responder.name]);
 
       const connected = new Promise((resolve) => {
-        watcherService.emitter.on("connection", () => {
+        responderService.emitter.on("connection", () => {
           connection = Object.values(serverService.connections)[0];
           connectionId = connection.id;
           resolve();
@@ -249,6 +255,16 @@ describe("moleculer-tcp", () => {
         expect(responderService.connection).toHaveBeenCalledWith({
           id: expect.any(String),
         });
+      });
+
+      it("should set the ctx.id to the connection id", async () => {
+        expect(
+          serverService.onServerConnectionAfterParams
+        ).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: expect.any(String),
+          })
+        );
       });
     });
 

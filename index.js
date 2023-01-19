@@ -178,6 +178,8 @@ module.exports = {
           socket.setTimeout(this.settings.timeout);
         }
 
+        ctx.params.id = id;
+
         await this.broker.emit("tcp.connection", {
           id,
         });
