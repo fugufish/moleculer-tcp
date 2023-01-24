@@ -62,7 +62,6 @@ module.exports = {
 
   created() {
     this.connections = {};
-    this.workers = [];
   },
 
   async stopped() {
@@ -121,6 +120,15 @@ module.exports = {
             "CONNECTION_NOT_FOUND"
           );
         }
+      },
+    },
+
+    onServerClose: {
+      visibility: "private",
+      async handler() {
+        this.logger.info("tcp server closed");
+
+        return this.broker.emit("tcp.close");
       },
     },
 
@@ -186,6 +194,54 @@ module.exports = {
       },
     },
 
+    onServerDrop: {
+      params: {
+        remoteAddress: "string",
+        localAddress: "string",
+        localPort: "number",
+      },
+      async handler(ctx) {
+        const { remoteAddress, localAddress, localPort } = ctx.params;
+
+        this.logger.warn(
+          `dropping connection from ${remoteAddress} to ${localAddress}:${localPort}`
+        );
+
+        await this.broker.emit("tcp.drop", {
+          remoteAddress,
+          localAddress,
+          localPort,
+        });
+      },
+    },
+
+    onServerError: {
+      params: {
+        error: "any",
+      },
+      visibility: "private",
+      async handler(ctx) {
+        const { error } = ctx.params;
+
+        this.logger.error("socket error", error);
+
+        await this.broker.emit("tcp.socket.error", {
+          error,
+        });
+      },
+    },
+
+    onServerListening: {
+      visibility: "private",
+      async handler() {
+        this.logger.info(
+          "tcp server listening on " + this.server.address().port
+        );
+
+        return this.broker.emit("tcp.listening");
+      },
+    },
+
     onSocketClose: {
       params: {
         id: "string",
@@ -209,31 +265,6 @@ module.exports = {
       },
     },
 
-    onSocketTimeout: {
-      params: {
-        id: "string",
-        timeout: "number",
-      },
-      visibility: "private",
-      async handler(ctx) {
-        const { id, timeout } = ctx.params;
-
-        if (this.connections[id]) {
-          this.logger.debug("connection: " + id + " timeout: " + timeout);
-
-          this.connections[id].socket.end();
-          return this.broker.emit("tcp.socket.timeout", { id });
-        } else {
-          throw new Errors.MoleculerClientError(
-            "connection not found: " + id,
-            404,
-            "CONNECTION_NOT_FOUND"
-          );
-        }
-      },
-    },
-
-    // Socket actions
     onSocketData: {
       params: {
         id: "string",
@@ -264,6 +295,7 @@ module.exports = {
       },
     },
 
+    // Socket actions
     onSocketError: {
       params: {
         id: "string",
@@ -278,6 +310,30 @@ module.exports = {
 
           this.connections[id].socket.end();
           return this.broker.emit("tcp.socket.error", { id, error });
+        } else {
+          throw new Errors.MoleculerClientError(
+            "connection not found: " + id,
+            404,
+            "CONNECTION_NOT_FOUND"
+          );
+        }
+      },
+    },
+
+    onSocketTimeout: {
+      params: {
+        id: "string",
+        timeout: "number",
+      },
+      visibility: "private",
+      async handler(ctx) {
+        const { id, timeout } = ctx.params;
+
+        if (this.connections[id]) {
+          this.logger.debug("connection: " + id + " timeout: " + timeout);
+
+          this.connections[id].socket.end();
+          return this.broker.emit("tcp.socket.timeout", { id });
         } else {
           throw new Errors.MoleculerClientError(
             "connection not found: " + id,
@@ -374,23 +430,23 @@ module.exports = {
       }
 
       this.server.on("listening", () => {
-        this.broker.emit("tcp.listening");
+        this.actions.onServerListening();
       });
 
-      this.server.on("error", (error) =>
-        this.broker.emit("tcp.error", { error })
-      );
+      this.server.on("error", (error) => this.actions.onServerError({ error }));
 
       this.server.on("close", () => {
-        this.broker.emit("tcp.close");
+        this.actions.onServerClose();
       });
+
       this.server.on("drop", (socket) => {
-        this.broker.emit("tcp.drop", {
+        this.actions.onServerDrop({
           remoteAddress: socket.remoteAddress,
           localAddress: socket.localAddress,
           localPort: socket.localPort,
         });
       });
+
       this.server.on("connection", (socket) =>
         this.actions.onServerConnection({ socket })
       );
