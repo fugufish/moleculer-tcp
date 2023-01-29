@@ -80,6 +80,16 @@ declare module "moleculer-tcp" {
     key: string;
   }
 
+  /**
+   * The parameters for the `onSocketData` action.
+   */
+  export interface IOnSocketDataActionParams extends ISocketActionParams {
+    /**
+     * The data that was received from the connection.
+     */
+    data: string | Buffer;
+  }
+
   export default class MoleculerTCP<
     S extends TMoleculerTCPSettings
   > extends Service<S> {}
