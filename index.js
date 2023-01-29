@@ -21,6 +21,8 @@ const { Server } = require("net");
  * | `deleteMetadata` | `id: string, key: string` | `public` | Delete a value from the connection's metadata store. This will emit the `tcp.socket.metadata.delete` event. |
  * | `getMetadata` | `id: string, key: string` | `public` | Get a value from the connection's metadata store. |
  * | `setMetadata` | `id: string, key: string, value: any` | `public` |  Set a value in the connection's metadata store. This will emit the `tcp.socket.metadata.set` event.|
+ * | `mergeMetadata` | `id: string, data: object` | `public` | Merge data into the connection's metadata store. This will emit the `tcp.socket.metadata.set` event for each key/value pair. |
+ * | `getAllMetadata` | `id: string` | `public` | Get all values from the connection's metadata store. |
  * | `socketClose` | `id: number` | public | Close a socket. |
  * | `socketWrite` | `id: string, data: string` | `public` | Write data to a socket. |
  *
@@ -254,6 +256,9 @@ module.exports = {
           this.logger.debug("connection: " + id + " closing");
 
           this.connections[id].socket.end();
+
+          delete this.connections[id];
+
           return this.broker.emit("tcp.socket.close", { id });
         } else {
           throw new Errors.MoleculerClientError(
@@ -308,7 +313,6 @@ module.exports = {
         if (this.connections[id]) {
           this.logger.debug("connection: " + id + " error: " + error);
 
-          this.connections[id].socket.end();
           return this.broker.emit("tcp.socket.error", { id, error });
         } else {
           throw new Errors.MoleculerClientError(
@@ -332,7 +336,6 @@ module.exports = {
         if (this.connections[id]) {
           this.logger.debug("connection: " + id + " timeout: " + timeout);
 
-          this.connections[id].socket.end();
           return this.broker.emit("tcp.socket.timeout", { id });
         } else {
           throw new Errors.MoleculerClientError(
@@ -341,6 +344,59 @@ module.exports = {
             "CONNECTION_NOT_FOUND"
           );
         }
+      },
+    },
+
+    getAllMetadata: {
+      params: {
+        id: "string",
+      },
+      async handler(ctx) {
+        const { id } = ctx.params;
+
+        if (this.connections[id]) {
+          return this.connections[id].metadata;
+        } else {
+          throw new Errors.MoleculerClientError(
+            "connection not found: " + id,
+            404,
+            "CONNECTION_NOT_FOUND"
+          );
+        }
+      },
+    },
+
+    mergeMetadata: {
+      params: {
+        id: "string",
+        data: "any",
+      },
+      async handler(ctx) {
+        const { id, data } = ctx.params;
+
+        if (this.connections[id]) {
+          this.logger.debug("connection: " + id + " merging data");
+
+          this.connections[id].metadata = {
+            ...this.connections[id].metadata,
+            ...data,
+          };
+
+          for (const key in data) {
+            await this.broker.emit("tcp.socket.metadata.set", {
+              id,
+              key,
+            });
+          }
+
+          return;
+        }
+
+        throw new Errors.MoleculerError(
+          "connection not found",
+          404,
+          "CONNECTION_NOT_FOUND"
+        );
       },
     },
 

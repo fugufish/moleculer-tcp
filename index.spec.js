@@ -202,6 +202,62 @@ describe("moleculer-tcp", () => {
       });
     });
 
+    describe("getAllMetadata", () => {
+      it("should return all metadata", async () => {
+        await broker.call("tcp.setMetadata", {
+          id: connectionId,
+          key: "foo",
+          value: "bar",
+        });
+
+        const metadata = await broker.call("tcp.getAllMetadata", {
+          id: connectionId,
+        });
+
+        expect(metadata).toEqual(
+          expect.objectContaining({
+            foo: "bar",
+          })
+        );
+      });
+    });
+
+    describe("mergeMetadata", () => {
+      it("should merge metadata and emit the 'tcp.socket.metadata.set' event", async () => {
+        await broker.call("tcp.mergeMetadata", {
+          id: connectionId,
+          data: {
+            foo: "bar",
+          },
+        });
+
+        expect(responderService.metadataSet).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: expect.any(String),
+            key: "foo",
+          })
+        );
+
+        expect(connection.metadata["foo"]).toEqual("bar");
+
+        expect(responderService.metadataSet).toHaveBeenCalledWith({
+          id: expect.any(String),
+          key: "foo",
+        });
+      });
+
+      it("throws an error if the connection does not exist", async () => {
+        await expect(
+          broker.call("tcp.mergeMetadata", {
+            id: "foo",
+            data: {
+              foo: "bar",
+            },
+          })
+        ).rejects.toThrow("connection not found");
+      });
+    });
+
     describe("deleteMetadata", () => {
       it("should delete metadata and emit the 'tcp.socket.metadata.delete' event", async () => {
         await broker.call("tcp.setMetadata", {
