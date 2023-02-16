@@ -42,7 +42,7 @@ declare module "moleculer-tcp" {
     /**
      * The metadata to merge into the connection metadata.
      */
-    metadata: Record<string, any>;
+    data: Record<string, any>;
   }
 
   /**
@@ -89,6 +89,11 @@ declare module "moleculer-tcp" {
      */
     data: string | Buffer;
   }
+
+  /**
+   * The parameters for the `getAllMetadata` action.
+   */
+  export interface IGetAllMetadataActionParams extends ISocketActionParams {}
 
   export default class MoleculerTCP<
     S extends TMoleculerTCPSettings
