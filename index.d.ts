@@ -1,5 +1,5 @@
-declare module 'moleculer-tcp' {
-  import { type ServiceSettingSchema, Service } from 'moleculer'
+declare module "moleculer-tcp" {
+  import { ServiceSettingSchema, Service } from "moleculer";
 
   /**
    * The Moleculer TCP service settings.
@@ -9,12 +9,12 @@ declare module 'moleculer-tcp' {
      * The port that the TCP server will listen on. Defaults to `8181`
      */
 
-    port?: number
+    port?: number;
 
     /**
      * The host that the TCP server will listen on. Defaults to `127.0.0.1`
      */
-    host?: string
+    host?: string;
   }
 
   /**
@@ -25,7 +25,7 @@ declare module 'moleculer-tcp' {
     /**
      * The connection ID. This should be a UUID.
      */
-    id: string
+    id: string;
   }
 
   /**
@@ -35,14 +35,14 @@ declare module 'moleculer-tcp' {
     /**
      * Data to write to the connection.
      */
-    data: string | Buffer
+    data: string | Buffer;
   }
 
   export interface IMergeMetadataActionParams extends ISocketActionParams {
     /**
      * The metadata to merge into the connection metadata.
      */
-    data: Record<string, any>
+    data: Record<string, any>;
   }
 
   /**
@@ -52,12 +52,12 @@ declare module 'moleculer-tcp' {
     /**
      * The key to set in the connection metadata.
      */
-    key: string
+    key: string;
 
     /**
      * The value to set in the connection metadata.
      */
-    value: any
+    value: any;
   }
 
   /**
@@ -67,7 +67,7 @@ declare module 'moleculer-tcp' {
     /**
      * The key to get from the connection metadata.
      */
-    key: string
+    key: string;
   }
 
   /**
@@ -77,7 +77,7 @@ declare module 'moleculer-tcp' {
     /**
      * The key to delete from the connection metadata.
      */
-    key: string
+    key: string;
   }
 
   /**
@@ -87,7 +87,7 @@ declare module 'moleculer-tcp' {
     /**
      * The data that was received from the connection.
      */
-    data: string | Buffer
+    data: string | Buffer;
   }
 
   /**
