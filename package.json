@@ -1,21 +1,30 @@
 {
   "name": "moleculer-tcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "TCP Gateway for MoleculerJS",
   "main": "index.js",
   "repository": "https://github.com/fugufish/moleculer-tcp",
   "author": "Jarod Reid",
   "license": "MIT",
-  "private": false,
+  "type": "module",
   "dependencies": {
     "moleculer": "^0.14.27",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
+    "@types/eslint": "^8",
     "@types/jest": "^29.2.5",
-    "jest": "^29.3.1"
+    "eslint": "^8.0.1",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.25.2",
+    "eslint-plugin-n": "^15.0.0 || ^16.0.0 ",
+    "eslint-plugin-promise": "^6.0.0",
+    "jest": "^29.3.1",
+    "typescript": "*"
   },
   "scripts": {
     "test": "jest"
-  }
+  },
+  "packageManager": "yarn@4.3.1"
 }
+
