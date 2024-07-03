@@ -1,6 +1,7 @@
 [![Moleculer logo](http://moleculer.services/images/banner.png)](https://github.com/moleculerjs/moleculer)
 
-This Moleculer Service mixin provides a tcp gateway.
+This Moleculer Service mixin provides a tcp gateway. It is a wrapper around the [`net`](https://nodejs.org/api/net.html) 
+module in NodeJS and provides a simple way to create a tcp server.
 
 [![Node.js CI](https://github.com/fugufish/moleculer-tcp/actions/workflows/node.js.yml/badge.svg)](https://github.com/fugufish/moleculer-tcp/actions/workflows/node.js.yml)
 [![npm version](https://badge.fury.io/js/moleculer-tcp.svg)](https://www.npmjs.com/package/moleculer-tcp?activeTab=readme)
@@ -31,6 +32,7 @@ This Moleculer Service mixin provides a tcp gateway.
 | `tcp.socket.timeout` | `id: string` `timeout: number` | Emitted when a socket times out. |
 | `tcp.socket.error`   | `id: string, error: any` | Emitted when a socket errors. |
 | `tcp.connection` | `id: string` | Emitted when a new connection is established. |
+| `tcp.listening` | `host: string, port: number` | Emitted when the server is listening. |
 | `tcp.close` | `id: string` | Emitted when a connection is closed. |
 | `tcp.error` | `id: string, error: any` | Emitted when a connection errors. |
 | `tcp.drop` | `id: string` | Emitted when a connection is dropped due to max connections. |
