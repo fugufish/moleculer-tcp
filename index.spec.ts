@@ -1,5 +1,5 @@
-import {Context, Service, ServiceBroker, ServiceSchema, ServiceSettingSchema} from "moleculer"
-import {ServerConnectionEvent, TcpServiceMixin} from "./index";
+import { Context, Service, ServiceBroker, ServiceSchema, ServiceSettingSchema } from "moleculer"
+import { ServerConnectionEvent, TcpServiceMixin } from "./index";
 import * as net from "node:net";
 
 interface TestService extends Service {
@@ -41,7 +41,6 @@ describe("moleculer-tcp service", () => {
     })
 
     await broker.start()
-
 
     await broker.waitForServices(["tcp", "test"])
     const testService = broker.getLocalService<TestService>("test")
