@@ -1,6 +1,6 @@
-import {Service, ServiceSchema, ServiceSettingSchema} from "moleculer";
-import {Server, Socket} from "net";
-import {v4 as uuid} from "uuid"
+import { Service, ServiceSchema, ServiceSettingSchema } from "moleculer";
+import { Server, Socket } from "net";
+import { v4 as uuid } from "uuid"
 
 /**
  * The Moleculer TCP service setting schema. The service defaults to listening on `127.0.0.1:8181`.
@@ -76,7 +76,7 @@ export interface ServerConnectionEvent {
   id: string
 }
 
-interface TcpService extends Service {
+export interface TcpService extends Service {
   server: Server
   connections: Record<string, Socket>
 }
@@ -85,11 +85,10 @@ interface TcpService extends Service {
  * This Moleculer service mixin provides a tcp gateway. It is designed to be a very simple elevation of `net.Server` to
  * a Moleculer service with some basic default connection handling.
  */
-const TcpServiceSchema: ServiceSchema<TcpServiceSettingSchema, TcpService> = {
-  name: 'tcp',
+export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, TcpService>> = {
   settings: {
     port: 8181,
-    host: '127.0.0.1'
+    host: "127.0.0.1"
   },
   created() {
     this.connections = {}
@@ -97,19 +96,24 @@ const TcpServiceSchema: ServiceSchema<TcpServiceSettingSchema, TcpService> = {
   async started() {
     this.server = new Server()
 
-    // promise ensures that the server is listening before resolving
     const promise = new Promise((resolve, reject) => {
-      this.server.once('error', reject)
-      this.service.once('listening', resolve)
+      this.server.once("error", reject)
+      this.server.once("listening", resolve)
     })
 
     if (this.settings.maxConnections) {
       this.server.maxConnections = this.settings.maxConnections
     }
 
+    this.setupServerEvents()
+
     this.server.listen(this.settings.port, this.settings.host)
 
     await promise
+  },
+
+  async stopped() {
+    this.server.close()
   },
 
   methods: {
@@ -123,46 +127,61 @@ const TcpServiceSchema: ServiceSchema<TcpServiceSettingSchema, TcpService> = {
       this.setupServerDropEvent()
     },
     setupServerListeningEvent() {
-      this.server.on('listening', async () => {
+      this.server.on("listening", async () => {
         this.logger.info(`TCP service listening on ${this.settings.host}:${this.settings.port}`)
-        await this.broker.emit('tcp.listening')
+        await this.broker.emit("tcp.listening")
       })
     },
     setupServerCloseEvent() {
-      this.server.on('close', async () => {
-        this.logger.info('TCP service closed')
-        await this.broker.emit('tcp.close')
+      this.server.on("close", async () => {
+        this.logger.info("TCP service closed")
+        await this.broker.emit("tcp.close")
       })
     },
     setupServerErrorEvent() {
-      this.server.on('error', async (error: Error) => {
-        this.logger.error('TCP service error', error)
-        await this.broker.emit<ServerErrorEvent>('tcp.error', {error})
+      this.server.on("error", async (error: Error) => {
+        this.logger.error("TCP service error", error)
+        await this.broker.emit<ServerErrorEvent>("tcp.error", { error })
       })
     },
     setupServerConnectionEvent() {
-      this.server.on('connection', async (socket) => {
+      this.server.on("connection",async (socket: Socket) => {
         const id = uuid()
         this.connections[id] = socket
         this.logger.info(`TCP connection established with ${socket.remoteAddress} with id ${id}`)
-        await this.broker.emit<ServerConnectionEvent>('tcp.connection', {id})
+        await this.broker.emit<ServerConnectionEvent>("tcp.connection", { id })
       })
     },
     setupServerDropEvent() {
-      this.server.on('drop', async (e) => {
-        this.logger.info(`TCP connection dropped from ${e!.remoteAddress}`)
-        await this.broker.emit<ServerDropEvent>('tcp.drop', {
-          localAddress: e!.localAddress!,
-          localPort: e!.localPort!,
-          localFamily: e!.localFamily!,
-          remoteAddress: e!.remoteAddress!,
-          remotePort: e!.remotePort!,
-          remoteFamily: e!.remoteFamily!
+      this.server.on("drop", async (e) => {
+        if (e === undefined) {
+          this.logger.error("TCP connection dropped without event")
+          return
+        }
+
+        const { localAddress, localPort, localFamily, remoteAddress, remotePort, remoteFamily } = e
+
+        if (localAddress === undefined ||
+          localPort === undefined ||
+          localFamily === undefined ||
+          remoteAddress === undefined ||
+          remotePort === undefined ||
+          remoteFamily === undefined) {
+          this.logger.error("TCP connection dropped without event")
+          return
+        }
+
+        this.logger.info(`TCP connection dropped from ${e.remoteAddress}`)
+        await this.broker.emit<ServerDropEvent>("tcp.drop", {
+          localAddress: localAddress,
+          localPort: localPort,
+          localFamily: localFamily,
+          remoteAddress: remoteAddress,
+          remotePort: remotePort,
+          remoteFamily: remoteFamily
         })
       })
     }
   }
 
 }
-
-export default TcpServiceSchema
