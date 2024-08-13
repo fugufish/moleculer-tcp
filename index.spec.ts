@@ -95,7 +95,7 @@ describe("moleculer-tcp service", () => {
   })
 
   it("should emit the 'tcp.connection' event when a connection is made", async () => {
-    const broker = new ServiceBroker({ transporter: "Fake", logLevel: "debug" })
+    const broker = new ServiceBroker({ transporter: "Fake", logLevel: "debug", logger: false })
     const connection = new net.Socket()
 
     const connectionPromise = new Promise((resolve) => {
