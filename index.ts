@@ -122,6 +122,7 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
      */
     setupServerEvents() {
       this.setupServerListeningEvent()
+      this.setupServerConnectionEvent()
       this.setupServerCloseEvent()
       this.setupServerErrorEvent()
       this.setupServerDropEvent()
