@@ -76,10 +76,33 @@ export interface ServerConnectionEvent {
   id: string
 }
 
+export interface SocketDataEvent {
+  data: string
+}
+
 export interface TcpService extends Service {
   server: Server
   connections: Record<string, Socket>
+  handleNewConnection(socket: Socket): Promise<string>
+  setupServerEvents(): void
+  setupServerListeningEvent(): void
+  setupServerConnectionEvent(): void
+  setupServerCloseEvent(): void
+  setupServerErrorEvent(): void
+  setupServerDropEvent(): void
 }
+
+const TCP_SERVER_EVENT_PREFIX = "tcp.server"
+const TCP_SOCKET_EVENT_PREFIX = "tcp.socket"
+
+
+export const TCP_SERVER_CONNECTION_EVENT = `${TCP_SERVER_EVENT_PREFIX}.connection`
+export const TCP_SERVER_DROP_EVENT = `${TCP_SERVER_EVENT_PREFIX}.drop`
+export const TCP_SERVER_ERROR_EVENT = `${TCP_SERVER_EVENT_PREFIX}.error`
+export const TCP_SERVER_CLOSE_EVENT = `${TCP_SERVER_EVENT_PREFIX}.close`
+export const TCP_SERVER_LISTENING_EVENT = `${TCP_SERVER_EVENT_PREFIX}.listening`
+
+export const TCP_SOCKET_DATA_EVENT = `${TCP_SOCKET_EVENT_PREFIX}.data`
 
 /**
  * This Moleculer service mixin provides a tcp gateway. It is designed to be a very simple elevation of `net.Server` to
@@ -117,6 +140,18 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
   },
 
   methods: {
+    async handleNewConnection(socket: Socket) {
+      const id = uuid()
+      this.connections[id] = socket
+
+      socket.on("data", (buffer) => {
+        this.broker.emit<SocketDataEvent>(TCP_SOCKET_DATA_EVENT, { data: buffer.toString() })
+      })
+
+      await this.broker.emit<ServerConnectionEvent>(TCP_SERVER_CONNECTION_EVENT, { id })
+
+      return id
+    },
     /**
      * Sets up the server events for the connection.
      */
@@ -130,27 +165,24 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
     setupServerListeningEvent() {
       this.server.on("listening", async () => {
         this.logger.info(`TCP service listening on ${this.settings.host}:${this.settings.port}`)
-        await this.broker.emit("tcp.listening")
+        await this.broker.emit(TCP_SERVER_LISTENING_EVENT)
       })
     },
     setupServerCloseEvent() {
       this.server.on("close", async () => {
         this.logger.info("TCP service closed")
-        await this.broker.emit("tcp.close")
+        await this.broker.emit(TCP_SERVER_CLOSE_EVENT)
       })
     },
     setupServerErrorEvent() {
       this.server.on("error", async (error: Error) => {
         this.logger.error("TCP service error", error)
-        await this.broker.emit<ServerErrorEvent>("tcp.error", { error })
+        await this.broker.emit<ServerErrorEvent>(TCP_SERVER_ERROR_EVENT, { error })
       })
     },
     setupServerConnectionEvent() {
       this.server.on("connection",async (socket: Socket) => {
-        const id = uuid()
-        this.connections[id] = socket
-        this.logger.info(`TCP connection established with ${socket.remoteAddress} with id ${id}`)
-        await this.broker.emit<ServerConnectionEvent>("tcp.connection", { id })
+        await this.handleNewConnection(socket)
       })
     },
     setupServerDropEvent() {
@@ -173,7 +205,7 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
         }
 
         this.logger.info(`TCP connection dropped from ${e.remoteAddress}`)
-        await this.broker.emit<ServerDropEvent>("tcp.drop", {
+        await this.broker.emit<ServerDropEvent>(TCP_SERVER_DROP_EVENT, {
           localAddress: localAddress,
           localPort: localPort,
           localFamily: localFamily,

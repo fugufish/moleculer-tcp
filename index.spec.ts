@@ -15,14 +15,14 @@ const TestService: ServiceSchema<ServiceSettingSchema, TestService> = {
 }
 
 describe("moleculer-tcp service", () => {
-  it("should emit 'tcp.listening' event when server is listening", async () => {
+  it("should emit 'tcp.server.listening' event when server is listening", async () => {
     const broker = new ServiceBroker({ transporter: "Fake", logLevel: "debug", logger: false })
     const promise = new Promise((resolve) => {
       const testServiceSchema: ServiceSchema<ServiceSettingSchema, TestService> = {
         ...TestService,
         ...{
           events: {
-            "tcp.listening": {
+            "tcp.server.listening": {
               handler() {
                 this.eventCalled = true
                 resolve(this)
@@ -52,14 +52,14 @@ describe("moleculer-tcp service", () => {
     await broker.stop()
   })
 
-  it("should emit 'tcp.close' event when server is closed", async () => {
+  it("should emit 'tcp.server.close' event when server is closed", async () => {
     const broker = new ServiceBroker({ transporter: "Fake", logLevel: "debug", logger: false })
     const promise = new Promise((resolve) => {
       const testServiceSchema: ServiceSchema<ServiceSettingSchema, TestService> = {
         ...TestService,
         ...{
           events: {
-            "tcp.close": {
+            "tcp.server.close": {
               handler() {
                 this.eventCalled = true
                 resolve(this)
@@ -89,11 +89,11 @@ describe("moleculer-tcp service", () => {
     expect(testService.eventCalled).toBe(true)
   })
 
-  it("should emit 'tcp.error' event when server has an error", async () => {
+  it("should emit 'tcp.server.error' event when server has an error", async () => {
     // TODO: Implement test when we figure out how to test this scenario
   })
 
-  it("should emit the 'tcp.connection' event when a connection is made", async () => {
+  it("should emit the 'tcp.server.connection' event when a connection is made", async () => {
     const broker = new ServiceBroker({ transporter: "Fake", logLevel: "debug", logger: false })
     const connection = new net.Socket()
 
@@ -108,7 +108,7 @@ describe("moleculer-tcp service", () => {
           ...TestService,
           ...{
             events: {
-              "tcp.connection": {
+              "tcp.server.connection": {
                 handler(ctx: Context<ServerConnectionEvent>) {
                   this.eventCalled = ctx.params.id
                   resolve(this)
