@@ -1,4 +1,4 @@
-import { Service, ServiceSchema, ServiceSettingSchema } from "moleculer";
+import {Context, Service, ServiceBroker, ServiceSchema, ServiceSettingSchema} from "moleculer";
 import { Server, Socket } from "net";
 import { v4 as uuid } from "uuid"
 
@@ -22,6 +22,11 @@ export interface TcpServiceSettingSchema extends ServiceSettingSchema {
    * unlimited number of connections.
    */
   maxConnections?: number
+
+  /**
+   * The connection class to use when a new connection is established.
+   */
+  connectionClass?: typeof Connection
 }
 
 /**
@@ -76,14 +81,22 @@ export interface ServerConnectionEvent {
   id: string
 }
 
-export interface SocketDataEvent {
+/**
+ * Event emitted when data is received from a socket.
+ */
+export interface SocketDataEvent extends ServerConnectionEvent {
   data: string
 }
 
+/**
+ * Socket error event.
+ */
+export type SocketErrorEvent = ServerErrorEvent & ServerConnectionEvent
+
 export interface TcpService extends Service {
   server: Server
-  connections: Record<string, Socket>
-  handleNewConnection(socket: Socket): Promise<string>
+  connections: Record<string, typeof Connection>
+  handleNewConnection(socket: Socket): Promise<void>
   setupServerEvents(): void
   setupServerListeningEvent(): void
   setupServerConnectionEvent(): void
@@ -96,13 +109,97 @@ const TCP_SERVER_EVENT_PREFIX = "tcp.server"
 const TCP_SOCKET_EVENT_PREFIX = "tcp.socket"
 
 
+/**
+ * Event emitted when a new connection is established.
+ */
 export const TCP_SERVER_CONNECTION_EVENT = `${TCP_SERVER_EVENT_PREFIX}.connection`
+
+/**
+ * Event emitted when a connection is dropped.
+ */
 export const TCP_SERVER_DROP_EVENT = `${TCP_SERVER_EVENT_PREFIX}.drop`
+
+/**
+ * Event emitted when an error occurs in the server.
+ */
 export const TCP_SERVER_ERROR_EVENT = `${TCP_SERVER_EVENT_PREFIX}.error`
+
+/**
+ * Event emitted when the server is closed.
+ */
 export const TCP_SERVER_CLOSE_EVENT = `${TCP_SERVER_EVENT_PREFIX}.close`
+
+/**
+ * Event emitted when the server starts listening.
+ */
 export const TCP_SERVER_LISTENING_EVENT = `${TCP_SERVER_EVENT_PREFIX}.listening`
 
+/**
+ * Event emitted when data is received from a socket.
+ */
 export const TCP_SOCKET_DATA_EVENT = `${TCP_SOCKET_EVENT_PREFIX}.data`
+
+/**
+ * Event emitted when a socket is closed.
+ */
+export const TCP_SOCKET_CLOSE_EVENT = `${TCP_SOCKET_EVENT_PREFIX}.close`
+
+/**
+ * Event emitted when a socket encounters an error.
+ */
+export const TCP_SOCKET_ERROR_EVENT = `${TCP_SOCKET_EVENT_PREFIX}.error`
+
+/**
+ * Event emitted when a socket times out.
+ */
+export const TCP_SOCKET_TIMEOUT_EVENT = `${TCP_SOCKET_EVENT_PREFIX}.timeout`
+
+
+/**
+ * A Connection represents a connection to a client.
+ */
+export class Connection {
+  /**
+   * The connection ID.
+   */
+  readonly id: string
+
+  /**
+   * The socket that the connection is using.
+   */
+  private readonly socket: Socket
+
+  /**
+   * The broker that the connection is using.
+   */
+  private readonly broker: ServiceBroker
+
+  /**
+   * @param broker The broker that the connection is using.
+   * @param socket The socket that the connection is using.
+   */
+  constructor(broker: ServiceBroker, socket: Socket) {
+    this.id = uuid().toString()
+    this.socket = socket
+    this.broker = broker
+
+    socket.on("data", async (buffer) => {
+      await this.broker.emit<SocketDataEvent>(TCP_SOCKET_DATA_EVENT, { data: buffer.toString(), id: this.id })
+    })
+
+    socket.on("close", async () => {
+      await this.broker.emit(TCP_SOCKET_CLOSE_EVENT, { id: this.id })
+    })
+
+    socket.on("error", async (error: Error) => {
+      await this.broker.emit<SocketErrorEvent>(TCP_SOCKET_ERROR_EVENT, { id: this.id, error })
+    })
+
+    socket.on("timeout", async () => {
+      await this.broker.emit(TCP_SOCKET_TIMEOUT_EVENT, { id: this.id })
+    })
+  }
+}
 
 /**
  * This Moleculer service mixin provides a tcp gateway. It is designed to be a very simple elevation of `net.Server` to
@@ -111,7 +208,8 @@ export const TCP_SOCKET_DATA_EVENT = `${TCP_SOCKET_EVENT_PREFIX}.data`
 export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, TcpService>> = {
   settings: {
     port: 8181,
-    host: "127.0.0.1"
+    host: "127.0.0.1",
+    connectionClass: Connection
   },
   created() {
     this.connections = {}
@@ -130,6 +228,10 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
 
     this.setupServerEvents()
 
+    if (this.settings.maxConnections) {
+      this.server.maxConnections = this.settings.maxConnections
+    }
+
     this.server.listen(this.settings.port, this.settings.host)
 
     await promise
@@ -139,18 +241,21 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
     this.server.close()
   },
 
+  events: {
+    TCP_SOCKET_CLOSE_EVENT: {
+      handler(this: TcpService, ctx: Context<ServerConnectionEvent>) {
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+        delete this.connections[ctx.params.id]
+      }
+    }
+
+  },
+
   methods: {
     async handleNewConnection(socket: Socket) {
-      const id = uuid()
-      this.connections[id] = socket
-
-      socket.on("data", (buffer) => {
-        this.broker.emit<SocketDataEvent>(TCP_SOCKET_DATA_EVENT, { data: buffer.toString() })
-      })
-
-      await this.broker.emit<ServerConnectionEvent>(TCP_SERVER_CONNECTION_EVENT, { id })
-
-      return id
+      const connection = new this.settings.connectionClass(socket)
+      this.connections[connection.id] = connection
+      await this.broker.emit<ServerConnectionEvent>(TCP_SERVER_CONNECTION_EVENT, { id: this.id })
     },
     /**
      * Sets up the server events for the connection.
