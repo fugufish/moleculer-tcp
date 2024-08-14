@@ -1,6 +1,7 @@
-import {Context, Service, ServiceBroker, ServiceSchema, ServiceSettingSchema} from "moleculer";
-import { Server, Socket } from "net";
-import { v4 as uuid } from "uuid"
+import Moleculer, {Context, Service, ServiceBroker, ServiceSchema, ServiceSettingSchema} from "moleculer";
+import {Server, Socket} from "net";
+import {v4 as uuid} from "uuid"
+import MoleculerError = Moleculer.Errors.MoleculerError;
 
 /**
  * The Moleculer TCP service setting schema. The service defaults to listening on `127.0.0.1:8181`.
@@ -93,15 +94,42 @@ export interface SocketDataEvent extends ServerConnectionEvent {
  */
 export type SocketErrorEvent = ServerErrorEvent & ServerConnectionEvent
 
+/**
+ * Parameters for the connection action
+ */
+export interface ConnectionActionParams {
+  /**
+   * The connection ID.
+   */
+  id: string
+}
+
+/**
+ * Parameters for the write action
+ */
+export interface WriteActionParams extends ConnectionActionParams {
+  /**
+   * The data to write to the connection.
+   */
+  data: string
+}
+
 export interface TcpService extends Service {
   server: Server
-  connections: Record<string, typeof Connection>
+  connections: Record<string, Connection>
+
   handleNewConnection(socket: Socket): Promise<void>
+
   setupServerEvents(): void
+
   setupServerListeningEvent(): void
+
   setupServerConnectionEvent(): void
+
   setupServerCloseEvent(): void
+
   setupServerErrorEvent(): void
+
   setupServerDropEvent(): void
 }
 
@@ -184,20 +212,35 @@ export class Connection {
     this.broker = broker
 
     socket.on("data", async (buffer) => {
-      await this.broker.emit<SocketDataEvent>(TCP_SOCKET_DATA_EVENT, { data: buffer.toString(), id: this.id })
+      await this.broker.emit<SocketDataEvent>(TCP_SOCKET_DATA_EVENT, {data: buffer.toString(), id: this.id})
     })
 
     socket.on("close", async () => {
-      await this.broker.emit(TCP_SOCKET_CLOSE_EVENT, { id: this.id })
+      this.socket.destroy()
+      await this.broker.emit(TCP_SOCKET_CLOSE_EVENT, {id: this.id})
     })
 
     socket.on("error", async (error: Error) => {
-      await this.broker.emit<SocketErrorEvent>(TCP_SOCKET_ERROR_EVENT, { id: this.id, error })
+      await this.broker.emit<SocketErrorEvent>(TCP_SOCKET_ERROR_EVENT, {id: this.id, error})
     })
 
     socket.on("timeout", async () => {
-      await this.broker.emit(TCP_SOCKET_TIMEOUT_EVENT, { id: this.id })
+      await this.broker.emit(TCP_SOCKET_TIMEOUT_EVENT, {id: this.id})
     })
+  }
+
+  /**
+   * Writes data to the socket.
+   */
+  write(data: string) {
+    this.socket.write(data)
+  }
+
+  /**
+   * Destroys the connection.
+   */
+  destroy() {
+    this.socket.destroy()
   }
 }
 
@@ -211,7 +254,7 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
     host: "127.0.0.1",
     connectionClass: Connection
   },
-  created() {
+  created(this: TcpService) {
     this.connections = {}
   },
   async started() {
@@ -238,7 +281,45 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
   },
 
   async stopped() {
-    this.server.close()
+    await Promise.all(
+      Object.values(this.connections).map((connection) => {
+        connection.destroy()
+      })
+    )
+    await new Promise((resolve) => {
+      this.server.close(resolve)
+    })
+  },
+
+  actions: {
+    write: {
+      params: {
+        id: "string",
+        data: "string"
+      },
+      async handler(this: TcpService, ctx: Context<WriteActionParams>) {
+        const connection = this.connections[ctx.params.id]
+        if (connection === undefined) {
+          throw new MoleculerError("Connection not found", 404)
+        }
+
+        connection.write(ctx.params.data)
+      }
+    },
+
+    close: {
+      params: {
+        id: "string"
+      },
+      async handler(this: TcpService, ctx: Context<ConnectionActionParams>) {
+        const connection = this.connections[ctx.params.id]
+        if (connection === undefined) {
+          throw new MoleculerError("Connection not found", 404)
+        }
+
+        connection.destroy()
+      }
+    }
   },
 
   events: {
@@ -255,7 +336,7 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
     async handleNewConnection(socket: Socket) {
       const connection = new this.settings.connectionClass(socket)
       this.connections[connection.id] = connection
-      await this.broker.emit<ServerConnectionEvent>(TCP_SERVER_CONNECTION_EVENT, { id: this.id })
+      await this.broker.emit<ServerConnectionEvent>(TCP_SERVER_CONNECTION_EVENT, {id: this.id})
     },
     /**
      * Sets up the server events for the connection.
@@ -282,11 +363,11 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
     setupServerErrorEvent() {
       this.server.on("error", async (error: Error) => {
         this.logger.error("TCP service error", error)
-        await this.broker.emit<ServerErrorEvent>(TCP_SERVER_ERROR_EVENT, { error })
+        await this.broker.emit<ServerErrorEvent>(TCP_SERVER_ERROR_EVENT, {error})
       })
     },
     setupServerConnectionEvent() {
-      this.server.on("connection",async (socket: Socket) => {
+      this.server.on("connection", async (socket: Socket) => {
         await this.handleNewConnection(socket)
       })
     },
@@ -297,7 +378,14 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
           return
         }
 
-        const { localAddress, localPort, localFamily, remoteAddress, remotePort, remoteFamily } = e
+        const {
+          localAddress,
+          localPort,
+          localFamily,
+          remoteAddress,
+          remotePort,
+          remoteFamily
+        } = e
 
         if (localAddress === undefined ||
           localPort === undefined ||
