@@ -1,6 +1,6 @@
-import Moleculer, {Context, Service, ServiceBroker, ServiceSchema, ServiceSettingSchema} from "moleculer";
-import {Server, Socket} from "net";
-import {v4 as uuid} from "uuid"
+import Moleculer, { Context, Service, ServiceBroker, ServiceSchema, ServiceSettingSchema } from "moleculer";
+import { Server, Socket } from "net";
+import { v4 as uuid } from "uuid"
 import MoleculerError = Moleculer.Errors.MoleculerError;
 
 /**
@@ -212,20 +212,20 @@ export class Connection {
     this.broker = broker
 
     socket.on("data", async (buffer) => {
-      await this.broker.emit<SocketDataEvent>(TCP_SOCKET_DATA_EVENT, {data: buffer.toString(), id: this.id})
+      await this.broker.emit<SocketDataEvent>(TCP_SOCKET_DATA_EVENT, { data: buffer.toString(), id: this.id })
     })
 
     socket.on("close", async () => {
       this.socket.destroy()
-      await this.broker.emit(TCP_SOCKET_CLOSE_EVENT, {id: this.id})
+      await this.broker.emit(TCP_SOCKET_CLOSE_EVENT, { id: this.id })
     })
 
     socket.on("error", async (error: Error) => {
-      await this.broker.emit<SocketErrorEvent>(TCP_SOCKET_ERROR_EVENT, {id: this.id, error})
+      await this.broker.emit<SocketErrorEvent>(TCP_SOCKET_ERROR_EVENT, { id: this.id, error })
     })
 
     socket.on("timeout", async () => {
-      await this.broker.emit(TCP_SOCKET_TIMEOUT_EVENT, {id: this.id})
+      await this.broker.emit(TCP_SOCKET_TIMEOUT_EVENT, { id: this.id })
     })
   }
 
@@ -336,7 +336,7 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
     async handleNewConnection(socket: Socket) {
       const connection = new this.settings.connectionClass(socket)
       this.connections[connection.id] = connection
-      await this.broker.emit<ServerConnectionEvent>(TCP_SERVER_CONNECTION_EVENT, {id: this.id})
+      await this.broker.emit<ServerConnectionEvent>(TCP_SERVER_CONNECTION_EVENT, { id: this.id })
     },
     /**
      * Sets up the server events for the connection.
@@ -363,7 +363,7 @@ export const TcpServiceMixin: Partial<ServiceSchema<TcpServiceSettingSchema, Tcp
     setupServerErrorEvent() {
       this.server.on("error", async (error: Error) => {
         this.logger.error("TCP service error", error)
-        await this.broker.emit<ServerErrorEvent>(TCP_SERVER_ERROR_EVENT, {error})
+        await this.broker.emit<ServerErrorEvent>(TCP_SERVER_ERROR_EVENT, { error })
       })
     },
     setupServerConnectionEvent() {
